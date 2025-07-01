@@ -13,7 +13,6 @@ import torchvision.transforms as tf
 from einops import rearrange, repeat
 from jaxtyping import Float, UInt8
 from PIL import Image
-import piq
 import torchvision
 from torch import Tensor
 from torch.utils.data import Dataset

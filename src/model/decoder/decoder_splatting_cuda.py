@@ -8,12 +8,14 @@ from torch import Tensor
 import torchvision
 
 from ..types import Gaussians
-from .cuda_splatting import DepthRenderingMode, render_cuda
+# from .cuda_splatting import DepthRenderingMode, render_cuda
 from .decoder import Decoder, DecoderOutput
 from math import sqrt 
 from gsplat import rasterization
 
 from ...misc.utils import vis_depth_map
+
+DepthRenderingMode = Literal["depth", "disparity", "relative_disparity", "log"]
 
 @dataclass
 class DecoderSplattingCUDACfg:

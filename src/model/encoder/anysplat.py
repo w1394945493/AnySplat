@@ -7,7 +7,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import List, Literal, Optional
 
-import open3d as o3d
 import torch
 import torch.nn.functional as F
 import torchvision

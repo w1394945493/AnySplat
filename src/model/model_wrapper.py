@@ -54,7 +54,7 @@ from ..visualization.camera_trajectory.wobble import (
 )
 from ..visualization.color_map import apply_color_map_to_image
 from ..visualization.layout import add_border, hcat, vcat
-from ..visualization.validation_in_3d import render_cameras, render_projections
+# from ..visualization.validation_in_3d import render_cameras, render_projections
 from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
@@ -480,11 +480,6 @@ class ModelWrapper(LightningModule):
 
         GS_num = infos['voxelize_ratio'] * (h*w*v)
         self.log("val/GS_num", GS_num)
-        # hard code for visualization gaussian ply
-        output_path = self.train_cfg.output_path / 'vis_ply'
-        output_path.mkdir(parents=True, exist_ok=True)
-        gaussian_path = f'gaussians_{batch["scene"][0]}_{self.global_step:0>6}.ply'
-        export_ply(gaussians.means[0], gaussians.scales[0], gaussians.rotations[0], gaussians.harmonics[0], gaussians.opacities[0], Path(output_path / gaussian_path))
         
         num_context_views = pred_context_pose['extrinsic'].shape[1]
         num_target_views = batch["target"]["extrinsics"].shape[1]
@@ -530,52 +525,12 @@ class ModelWrapper(LightningModule):
             context.append(context_img[i])
             # context.append(context_img_depth[i])
         
-        # diff_map_gray = diff_map[0].clone()
-        # near_val = torch.tensor(1e-4, device=diff_map.device)
-        # far_val = torch.tensor(1.4, device=diff_map.device)
-        # diff_map_gray = (diff_map_gray - near_val) / (far_val - near_val).clamp(min=1e-8)
-        # diff_map_gray = diff_map_gray.clamp(0, 1)  # Clamp to [0, 1]
-        # diff_map_gray = diff_map_gray.unsqueeze(1).repeat(1, 3, 1, 1)  # Convert to 3-channel grayscale
-        
         colored_diff_map = vis_depth_map(diff_map[0], near=torch.tensor(1e-4, device=diff_map.device), far=torch.tensor(1.0, device=diff_map.device))
         model_depth_pred = depth_dict["depth"].squeeze(-1)[0]
         model_depth_pred = vis_depth_map(model_depth_pred)
         
         render_normal = (get_normal_map(output.depth.flatten(0, 1), batch["context"]["intrinsics"].flatten(0, 1)).permute(0, 3, 1, 2) + 1) / 2.
         pred_normal = (get_normal_map(depth_dict['depth'].flatten(0, 1).squeeze(-1), batch["context"]["intrinsics"].flatten(0, 1)).permute(0, 3, 1, 2) + 1) / 2.
-        
-        # save images
-        img_output_path = self.train_cfg.output_path / 'img' / str(self.global_step)
-        img_output_path.mkdir(parents=True, exist_ok=True)
-        for i in range(num_context_views):
-            save_image(rgb_pred[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}.png')
-            save_image(rgb_gt[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_gt.png')
-            save_image(depth_pred[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_depth.png')
-            save_image(model_depth_pred[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_model_depth.png')
-            save_image(render_normal[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_normal.png')
-            save_image(pred_normal[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_pred_normal.png')
-            save_image(colored_diff_map[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_diff_map.png')
-            # torchvision.utils.save_image(diff_map_gray[i], img_output_path / f'{self.global_step:0>6}_{i:0>6}_diff_map_gray.png')
-    
-        # Save metrics to JSON
-        import json
-        
-        metrics_dict = {
-            "psnr": float(psnr),
-            "ssim": float(ssim),
-            "lpips": float(lpips),
-            "consis_absrel": float(consis_absrel.mean()),
-            "consis_delta1": float(consis_delta1.mean()),
-            "GS_num": int(GS_num),
-            "voxelize_ratio": float(infos['voxelize_ratio']),
-        }
-        
-        metrics_output_path = self.train_cfg.output_path / 'metrics'
-        metrics_output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Save metrics to a JSON file
-        with open(metrics_output_path / f'metrics_{self.global_step:0>6}.json', 'w') as f:
-            json.dump(metrics_dict, f, indent=4)
 
         comparison = hcat(
             add_label(vcat(*context), "Context"),

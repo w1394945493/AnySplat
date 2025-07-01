@@ -25,7 +25,7 @@ def main():
     images = [process_image(img_path) for img_path in images]
     images = torch.stack(images, dim=0).unsqueeze(0).to(device) # [1, K, 3, 448, 448]
     b, v, _, h, w = images.shape
-
+    
     # Run Inference
     gaussians, pred_context_pose = model.inference((images+1)*0.5)
 

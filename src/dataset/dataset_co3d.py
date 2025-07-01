@@ -15,7 +15,6 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import Dataset
 import os.path as osp
-import open3d as o3d
 import cv2
 from ..geometry.projection import get_fov
 from .dataset import DatasetCfgCommon

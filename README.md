@@ -19,8 +19,8 @@ Our code relies on Python 3.10+, and is developed based on PyTorch 2.2.0 and CUD
 
 1. Clone AnySplat.
 ```bash
-git clone git@github.com:jianglh-WHU/AnySplat-dev.git
-cd AnySplat-dev
+git clone https://github.com/OpenRobotLab/AnySplat.git
+cd AnySplat
 ```
 
 2. Create the environment, here we show an example using conda.
