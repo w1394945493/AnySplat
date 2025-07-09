@@ -2,10 +2,16 @@
 
 [![Project Website](https://img.shields.io/badge/AnySplat-Website-4CAF50?logo=googlechrome&logoColor=white)](https://city-super.github.io/anysplat/)
 [![Paper](https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv&logoColor=b31b1b)](https://arxiv.org/pdf/2505.23716)
+[![Gradio Demo](https://img.shields.io/badge/Gradio-Demo-orange?style=flat&logo=Gradio&logoColor=red)](https://huggingface.co/spaces/alexnasa/AnySplat)
 [![Hugging Face Model](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/lhjiang/anysplat)
 
 [Lihan Jiang*](https://jianglh-whu.github.io/), [Yucheng Mao*](https://myc634.github.io/yuchengmao/), [Linning Xu](https://eveneveno.github.io/lnxu),
 [Tao Lu](https://inspirelt.github.io/), [Kerui Ren](https://github.com/tongji-rkr), [Yichen Jin](), [Xudong Xu](https://scholar.google.com.hk/citations?user=D8VMkA8AAAAJ&hl=en), [Mulin Yu](https://scholar.google.com/citations?user=w0Od3hQAAAAJ), [Jiangmiao Pang](https://oceanpang.github.io/), [Feng Zhao](https://scholar.google.co.uk/citations?user=r6CvuOUAAAAJ&hl=en), [Dahua Lin](http://dahua.site/), [Bo Dai<sup>†</sup>](https://daibo.info/) <br />
+
+## News
+[2024.07.08] We thank [Alex Nasa](https://huggingface.co/alexnasa) for providing us with an excellent [Huggingface demo](https://huggingface.co/spaces/alexnasa/AnySplat).
+
+[2024.06.30] We release the training & inference code.
 
 ## Overview
 <p align="center">
