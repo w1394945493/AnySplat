@@ -2,7 +2,7 @@ defaults:
   - model/encoder: anysplat
   - model/decoder: splatting_cuda
   - loss: [mse]
-  
+
 wandb:
   project: anysplat
   entity: scene-representation-group
@@ -41,6 +41,8 @@ checkpointing:
   every_n_train_steps: 5000
   save_top_k: 1
   save_weights_only: true
+  no_strict_load: false
+  pretrained_model: null
 
 train:
   output_path: ${hydra.run.dir}
@@ -50,11 +52,11 @@ train:
   distiller: ''
   distill_max_steps: 1000000
   random_context_views: false
-  
+
 test:
   output_path: outputs/test-nopo
   align_pose: true
-  pose_align_steps: 100
+  pose_align_steps: 100 
   rot_opt_lr:  0.005
   trans_opt_lr:  0.005
   compute_scores: true
@@ -79,3 +81,4 @@ hydra:
     dir: output-debug/exp_${wandb.name}/${now:%Y-%m-%d_%H-%M-%S}
   # run:
     # dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_rank${oc.env:LOCAL_RANK,0}
+output_dir: outputs/tmp

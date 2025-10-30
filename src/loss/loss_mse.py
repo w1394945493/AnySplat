@@ -34,7 +34,7 @@ class LossMse(Loss[LossMseCfg, LossMseCfgWrapper]):
         # Get alpha and valid mask from inputs
         alpha = prediction.alpha
         # valid_mask = torch.ones_like(alpha, device=alpha.device).bool()
-        valid_mask = batch['context']['valid_mask']
+
 
         # # only for objaverse
         # if batch['context']['valid_mask'].sum() > 0:
@@ -42,16 +42,17 @@ class LossMse(Loss[LossMseCfg, LossMseCfgWrapper]):
 
         # Determine which mask to use based on config
         if self.cfg.mask:
+            valid_mask = batch['context']['valid_mask']
             mask = valid_mask
         elif self.cfg.alpha:
-            mask = alpha  
+            mask = alpha
         elif self.cfg.conf:
             mask = depth_dict['conf_valid_mask']
         else:
             mask = torch.ones_like(alpha, device=alpha.device).bool()
 
         # Rearrange and mask predicted and ground truth images
-        pred_img = prediction.color.permute(0, 1, 3, 4, 2)[mask] 
+        pred_img = prediction.color.permute(0, 1, 3, 4, 2)[mask]
         gt_img = ((batch["context"]["image"][:, batch["using_index"]] + 1) / 2).permute(0, 1, 3, 4, 2)[mask]
 
         delta = pred_img - gt_img

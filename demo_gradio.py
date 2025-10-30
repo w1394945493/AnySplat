@@ -167,7 +167,7 @@ def gradio_demo(
     start_time = time.time()
     gc.collect()
     torch.cuda.empty_cache()
-    
+
     # Prepare frame_filter dropdown
     target_dir_images = os.path.join(target_dir, "images")
     all_files = (
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     server_port = None
     share = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     # Load model
     model = AnySplat.from_pretrained(
         "lhjiang/anysplat"
@@ -227,7 +227,7 @@ if __name__ == "__main__":
             color: transparent !important;
             text-align: center !important;
         }
-        
+
         .example-log * {
             font-style: italic;
             font-size: 16px !important;
@@ -236,7 +236,7 @@ if __name__ == "__main__":
             background-clip: text;
             color: transparent !important;
         }
-        
+
         #my_radio .wrap {
             display: flex;
             flex-wrap: nowrap;
@@ -274,7 +274,7 @@ if __name__ == "__main__":
                         <a title="Github" href="https://github.com/OpenRobotLab/AnySplat" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
                             <img src="https://img.shields.io/badge/Github-Page-black" alt="badge-github-stars">
                         </a>
-                
+
                         </p>
                         """
             )
@@ -290,7 +290,7 @@ if __name__ == "__main__":
             3. Reconstruct: Click the "Reconstruct" button to start the 3D reconstruction process.
 
             4. Visualize: The reconstructed 3D Gaussian Splat will appear in the viewer on the right, along with the rendered RGB and depth videos. The trajectory of the rendered video is obtained by interpolating the estimated input image poses.
-            
+
             <strong style="color: #0ea5e9;">Please note:</strong> <span style="color: #0ea5e9; font-weight: bold;">The generated splats are large in size, so they may not load successfully in the Hugging Face demo. You can download the .ply file and render it using other viewers, such as [SuperSplat](https://playcanvas.com/supersplat/editor).</span>
             """
             )
@@ -366,20 +366,20 @@ if __name__ == "__main__":
 
         examples = [
             [None, "examples/video/re10k_1eca36ec55b88fe4.mp4", "re10k", "1eca36ec55b88fe4", "2", "Real", "True",],
-            [None, "examples/video/bungeenerf_colosseum.mp4", "bungeenerf", "colosseum", "8", "Synthetic", "True",],
-            [None, "examples/video/fox.mp4", "InstantNGP", "fox", "14", "Real", "True",],
-            [None, "examples/video/matrixcity_street.mp4", "matrixcity", "street", "32", "Synthetic", "True",],
-            [None, "examples/video/vrnerf_apartment.mp4", "vrnerf", "apartment", "32", "Real", "True",],
-            [None, "examples/video/vrnerf_kitchen.mp4", "vrnerf", "kitchen", "17", "Real", "True",],
-            [None, "examples/video/vrnerf_riverview.mp4", "vrnerf", "riverview", "12", "Real", "True",],
-            [None, "examples/video/vrnerf_workshop.mp4", "vrnerf", "workshop", "32", "Real", "True",],
-            [None, "examples/video/fillerbuster_ramen.mp4", "fillerbuster", "ramen", "32", "Real", "True",],
-            [None, "examples/video/meganerf_rubble.mp4", "meganerf", "rubble", "10", "Real", "True",],
-            [None, "examples/video/llff_horns.mp4", "llff", "horns", "12", "Real", "True",],
-            [None, "examples/video/llff_fortress.mp4", "llff", "fortress", "7", "Real", "True",],
-            [None, "examples/video/dtu_scan_106.mp4", "dtu", "scan_106", "20", "Real", "True",],
-            [None, "examples/video/horizongs_hillside_summer.mp4", "horizongs", "hillside_summer", "55", "Synthetic", "True",],
-            [None, "examples/video/kitti360.mp4", "kitti360", "kitti360", "64", "Real", "True",],
+            # [None, "examples/video/bungeenerf_colosseum.mp4", "bungeenerf", "colosseum", "8", "Synthetic", "True",],
+            # [None, "examples/video/fox.mp4", "InstantNGP", "fox", "14", "Real", "True",],
+            # [None, "examples/video/matrixcity_street.mp4", "matrixcity", "street", "32", "Synthetic", "True",],
+            # [None, "examples/video/vrnerf_apartment.mp4", "vrnerf", "apartment", "32", "Real", "True",],
+            # [None, "examples/video/vrnerf_kitchen.mp4", "vrnerf", "kitchen", "17", "Real", "True",],
+            # [None, "examples/video/vrnerf_riverview.mp4", "vrnerf", "riverview", "12", "Real", "True",],
+            # [None, "examples/video/vrnerf_workshop.mp4", "vrnerf", "workshop", "32", "Real", "True",],
+            # [None, "examples/video/fillerbuster_ramen.mp4", "fillerbuster", "ramen", "32", "Real", "True",],
+            # [None, "examples/video/meganerf_rubble.mp4", "meganerf", "rubble", "10", "Real", "True",],
+            # [None, "examples/video/llff_horns.mp4", "llff", "horns", "12", "Real", "True",],
+            # [None, "examples/video/llff_fortress.mp4", "llff", "fortress", "7", "Real", "True",],
+            # [None, "examples/video/dtu_scan_106.mp4", "dtu", "scan_106", "20", "Real", "True",],
+            # [None, "examples/video/horizongs_hillside_summer.mp4", "horizongs", "hillside_summer", "55", "Synthetic", "True",],
+            # [None, "examples/video/kitti360.mp4", "kitti360", "kitti360", "64", "Real", "True",],
         ]
 
         def example_pipeline(

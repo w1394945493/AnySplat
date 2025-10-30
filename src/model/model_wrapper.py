@@ -10,9 +10,14 @@ import torchvision
 import wandb
 from einops import pack, rearrange, repeat
 from jaxtyping import Float
-from lightning.pytorch import LightningModule
-from lightning.pytorch.loggers.wandb import WandbLogger
-from lightning.pytorch.utilities import rank_zero_only
+# from lightning.pytorch import LightningModule
+# from lightning.pytorch.loggers.wandb import WandbLogger
+# from lightning.pytorch.utilities import rank_zero_only
+
+from pytorch_lightning import LightningModule
+from pytorch_lightning.loggers.wandb import WandbLogger
+from pytorch_lightning.utilities import rank_zero_only
+
 from tabulate import tabulate
 from torch import Tensor, nn, optim
 import torch.nn.functional as F
@@ -136,16 +141,16 @@ class ModelWrapper(LightningModule):
         self.test_cfg = test_cfg
         self.train_cfg = train_cfg
         self.step_tracker = step_tracker
-        
+
         # Set up the model.
         self.encoder_visualizer = None
         self.model = model
         self.data_shim = get_data_shim(self.model.encoder)
         self.losses = nn.ModuleList(losses)
-        
+
         if self.model.encoder.pred_pose:
             self.loss_pose = HuberLoss(alpha=self.train_cfg.pose_loss_alpha, delta=self.train_cfg.pose_loss_delta)
-        
+
         if self.model.encoder.distill:
             self.loss_distill = DistillLoss(
                 delta=self.train_cfg.pose_loss_delta,
@@ -156,7 +161,7 @@ class ModelWrapper(LightningModule):
 
         # This is used for testing.
         self.benchmarker = Benchmarker()
-        
+
     def on_train_epoch_start(self) -> None:
         # our custom dataset and sampler has to have epoch set by calling set_epoch
         if hasattr(self.trainer.datamodule.train_loader.dataset, "set_epoch"):
@@ -171,7 +176,7 @@ class ModelWrapper(LightningModule):
             self.trainer.datamodule.val_loader.dataset.set_epoch(self.current_epoch)
         if hasattr(self.trainer.datamodule.val_loader.sampler, "set_epoch"):
             self.trainer.datamodule.val_loader.sampler.set_epoch(self.current_epoch)
-        
+
     def training_step(self, batch, batch_idx):
         # combine batch from different dataloaders
         # torch.cuda.empty_cache()
@@ -190,11 +195,11 @@ class ModelWrapper(LightningModule):
                         else:
                             raise NotImplementedError
             batch = batch_combined
-        
+
         batch: BatchedExample = self.data_shim(batch)
         b, v, c, h, w = batch["context"]["image"].shape
         context_image = (batch["context"]["image"] + 1) / 2
-        
+
         # Run the model.
         visualization_dump = None
 
@@ -203,12 +208,12 @@ class ModelWrapper(LightningModule):
         pred_context_pose = encoder_output.pred_context_pose
         infos = encoder_output.infos
         distill_infos = encoder_output.distill_infos
-        
+
         num_context_views = pred_context_pose['extrinsic'].shape[1]
 
         using_index = torch.arange(num_context_views, device=gaussians.means.device)
         batch["using_index"] = using_index
-        
+
         target_gt = (batch["context"]["image"] + 1) / 2
         scene_scale = infos["scene_scale"]
         self.log("train/scene_scale", infos["scene_scale"])
@@ -234,7 +239,7 @@ class ModelWrapper(LightningModule):
             rearrange(distill_infos['conf_mask'], "b v h w -> (b v) h w"),
         )
         self.log("train/consis_delta1", consis_delta1.mean())
-        
+
         # Compute and log loss.
         total_loss = 0
 
@@ -260,12 +265,12 @@ class ModelWrapper(LightningModule):
                 self.log("loss/distill_depth", loss_distill_list['loss_depth'])
                 self.log("loss/distill_normal", loss_distill_list['loss_normal'])
                 total_loss = total_loss + loss_distill_list['loss_distill']
-        
+
         self.log("loss/total", total_loss)
         print(f"total_loss: {total_loss}")
 
         # Skip batch if loss is too high after certain step
-        SKIP_AFTER_STEP = 1000  
+        SKIP_AFTER_STEP = 1000
         LOSS_THRESHOLD = 0.2
         if self.global_step > SKIP_AFTER_STEP and total_loss > LOSS_THRESHOLD:
             print(f"Skipping batch with high loss ({total_loss:.6f}) at step {self.global_step} on Rank {self.global_rank}")
@@ -282,20 +287,20 @@ class ModelWrapper(LightningModule):
                 f"context = {batch['context']['index'].tolist()}; "
                 f"loss = {total_loss:.6f}; "
             )
-            
+
         self.log("info/global_step", self.global_step)  # hack for ckpt monitor
-        
+
         # Tell the data loader processes about the current step.
         if self.step_tracker is not None:
             self.step_tracker.set_step(self.global_step)
-        
+
         del batch
         if self.global_step % 50 == 0:
             gc.collect()
             torch.cuda.empty_cache()
 
         return total_loss
-    
+
     def on_after_backward(self):
         total_norm = 0.0
         counter = 0
@@ -306,20 +311,24 @@ class ModelWrapper(LightningModule):
                 counter += 1
         total_norm = (total_norm / counter) ** 0.5
         self.log("loss/grad_norm", total_norm)
-        
+
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
-        
+
         # Render Gaussians.
         with self.benchmarker.time("encoder"):
+            # gaussians = self.model.encoder(
+            #     (batch["context"]["image"]+1)/2,
+            #     self.global_step,
+            # )[0]
             gaussians = self.model.encoder(
                 (batch["context"]["image"]+1)/2,
                 self.global_step,
-            )[0]
+            ).gaussians
         # export_ply(gaussians.means[0], gaussians.scales[0], gaussians.rotations[0], gaussians.harmonics[0], gaussians.opacities[0], Path("gaussians.ply"))
         # align the target pose
         if self.test_cfg.align_pose:
@@ -334,7 +343,7 @@ class ModelWrapper(LightningModule):
                     batch["target"]["far"],
                     (h, w),
                 )
-        
+
         # compute scores
         if self.test_cfg.compute_scores:
             overlap = batch["context"]["overlap"][0]
@@ -351,7 +360,7 @@ class ModelWrapper(LightningModule):
 
             self.log_dict(all_metrics)
             self.print_preview_metrics(all_metrics, methods, overlap_tag=overlap_tag)
-        
+
         # Save images.
         (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
@@ -376,7 +385,7 @@ class ModelWrapper(LightningModule):
                 add_label(vcat(*rgb_pred), "Target (Prediction)"),
             )
             save_image(comparison, path / f"{scene}.png")
-                
+
     def test_step_align(self, batch, gaussians):
         self.model.encoder.eval()
         # freeze all parameters
@@ -431,12 +440,18 @@ class ModelWrapper(LightningModule):
                     # Compute and log loss.
                     total_loss = 0
                     for loss_fn in self.losses:
-                        loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+                        # loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+                        loss = loss_fn.forward(prediction=output,
+                                               batch = batch,
+                                               gaussians = gaussians,
+                                               depth_dict = None,
+                                               global_step = self.global_step,
+                                               )
                         total_loss = total_loss + loss
 
                     total_loss.backward()
                     pose_optimizer.step()
-                    
+
         # Render Gaussians.
         output = self.model.decoder.forward(
             gaussians,
@@ -458,7 +473,7 @@ class ModelWrapper(LightningModule):
         self.benchmarker.summarize()
 
     @rank_zero_only
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):        
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         batch: BatchedExample = self.data_shim(batch)
 
         if self.global_rank == 0:
@@ -480,7 +495,7 @@ class ModelWrapper(LightningModule):
 
         GS_num = infos['voxelize_ratio'] * (h*w*v)
         self.log("val/GS_num", GS_num)
-        
+
         num_context_views = pred_context_pose['extrinsic'].shape[1]
         num_target_views = batch["target"]["extrinsics"].shape[1]
         rgb_pred = output.color[0].float()
@@ -506,7 +521,7 @@ class ModelWrapper(LightningModule):
             rearrange(depth_dict['depth'].squeeze(-1), "b v h w -> (b v) h w"),
         )
         self.log("val/consis_absrel", consis_absrel.mean())
-        
+
         consis_delta1 = delta1_acc(
             rearrange(output.depth, "b v h w -> (b v) h w"),
             rearrange(depth_dict['depth'].squeeze(-1), "b v h w -> (b v) h w"),
@@ -524,11 +539,11 @@ class ModelWrapper(LightningModule):
         for i in range(context_img.shape[0]):
             context.append(context_img[i])
             # context.append(context_img_depth[i])
-        
+
         colored_diff_map = vis_depth_map(diff_map[0], near=torch.tensor(1e-4, device=diff_map.device), far=torch.tensor(1.0, device=diff_map.device))
         model_depth_pred = depth_dict["depth"].squeeze(-1)[0]
         model_depth_pred = vis_depth_map(model_depth_pred)
-        
+
         render_normal = (get_normal_map(output.depth.flatten(0, 1), batch["context"]["intrinsics"].flatten(0, 1)).permute(0, 3, 1, 2) + 1) / 2.
         pred_normal = (get_normal_map(depth_dict['depth'].flatten(0, 1).squeeze(-1), batch["context"]["intrinsics"].flatten(0, 1)).permute(0, 3, 1, 2) + 1) / 2.
 
@@ -544,12 +559,12 @@ class ModelWrapper(LightningModule):
         )
 
         comparison = torch.nn.functional.interpolate(
-            comparison.unsqueeze(0), 
-            scale_factor=0.5, 
-            mode='bicubic', 
+            comparison.unsqueeze(0),
+            scale_factor=0.5,
+            mode='bicubic',
             align_corners=False
         ).squeeze(0)
-        
+
         self.logger.log_image(
             "comparison",
             [prep_image(add_border(comparison))],
@@ -591,7 +606,7 @@ class ModelWrapper(LightningModule):
                 batch["context"], self.global_step
             ).items():
                 self.logger.log_image(k, [prep_image(image)], step=self.global_step)
-        
+
         # Run video validation step.
         self.render_video_interpolation(batch)
         self.render_video_wobble(batch)
@@ -736,7 +751,7 @@ class ModelWrapper(LightningModule):
         visualizations = {
             f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
         }
-            
+
         # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
         try:
             wandb.log(visualizations)
@@ -807,14 +822,14 @@ class ModelWrapper(LightningModule):
         for name, param in self.named_parameters():
             if not param.requires_grad:
                 continue
-            
+
             if "gaussian_param_head" in name or "interm" in name:
                 new_params.append(param)
                 new_param_names.append(name)
             else:
                 pretrained_params.append(param)
                 pretrained_param_names.append(name)
-        
+
         param_dicts = [
             {
                 "params": new_params,
@@ -833,7 +848,7 @@ class ModelWrapper(LightningModule):
             1,
             total_iters=warm_up_steps,
         )
-        
+
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=get_cfg()["trainer"]["max_steps"], eta_min=self.optimizer_cfg.lr * 0.1)
         lr_scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warm_up, lr_scheduler], milestones=[warm_up_steps])
 

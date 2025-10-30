@@ -4,7 +4,8 @@ from typing import Callable
 
 import numpy as np
 import torch
-from lightning.pytorch import LightningDataModule
+# from lightning.pytorch import LightningDataModule
+from pytorch_lightning import LightningDataModule
 from torch import Generator, nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 
@@ -37,7 +38,7 @@ def get_data_shim(encoder: nn.Module) -> DataShim:
     return combined_shim
 
 # the training ratio of datasets (example)
-prob_mapping = {DatasetScannetpp: 0.5, 
+prob_mapping = {DatasetScannetpp: 0.5,
                 DatasetDL3DV: 0.5,
                 DatasetCo3d: 0.5}
 
@@ -70,7 +71,7 @@ class DataModule(LightningDataModule):
     step_tracker: StepTracker | None
     dataset_shim: DatasetShim
     global_rank: int
-    
+
     def __init__(
         self,
         dataset_cfgs: list[DatasetCfgWrapper],
@@ -85,7 +86,7 @@ class DataModule(LightningDataModule):
         self.step_tracker = step_tracker
         self.dataset_shim = dataset_shim
         self.global_rank = global_rank
-        
+
     def get_persistent(self, loader_cfg: DataLoaderStageCfg) -> bool | None:
         return None if loader_cfg.num_workers == 0 else loader_cfg.persistent_workers
 
@@ -96,7 +97,7 @@ class DataModule(LightningDataModule):
         generator.manual_seed(loader_cfg.seed + self.global_rank)
         self.generator = generator
         return self.generator
-        
+
     def train_dataloader(self):
         dataset, datasets_ls = get_dataset(self.dataset_cfgs, "train", self.step_tracker, self.dataset_shim)
         world_size = get_world_size()
@@ -104,7 +105,7 @@ class DataModule(LightningDataModule):
         # breakpoint()
         prob_ls = [prob_mapping[type(dataset)] for dataset in datasets_ls]
         # we assume all the dataset share the same num_context_views
-        
+
         if len(datasets_ls) > 1:
             prob = prob_ls
             context_num_views = [dataset.cfg.view_sampler.num_context_views for dataset in datasets_ls]
@@ -113,11 +114,11 @@ class DataModule(LightningDataModule):
             dataset_key = next(iter(get_cfg()["dataset"]))
             dataset_cfg = get_cfg()["dataset"][dataset_key]
             context_num_views = dataset_cfg['view_sampler']['num_context_views']
-            
-        sampler = MixedBatchSampler(datasets_ls, 
+
+        sampler = MixedBatchSampler(datasets_ls,
                                     batch_size=self.data_loader_cfg.train.batch_size, # Not used here!
-                                    num_context_views=context_num_views, 
-                                    world_size=world_size, 
+                                    num_context_views=context_num_views,
+                                    world_size=world_size,
                                     rank=rank,
                                     prob=prob,
                                     generator=self.get_generator(self.data_loader_cfg.train))
@@ -141,7 +142,7 @@ class DataModule(LightningDataModule):
         if hasattr(self.train_loader, "sampler") and hasattr(self.train_loader.sampler, "set_epoch"):
             print("Training: Set Epoch in DataModule")
             self.train_loader.sampler.set_epoch(0)
-        
+
         return self.train_loader
 
     def val_dataloader(self):
@@ -155,10 +156,10 @@ class DataModule(LightningDataModule):
              prob = [0.5] * len(datasets_ls)
         else:
             prob = None
-        sampler = MixedBatchSampler(datasets_ls, 
-                                    batch_size=self.data_loader_cfg.train.batch_size, 
-                                    num_context_views=dataset_cfg['view_sampler']['num_context_views'], 
-                                    world_size=world_size, 
+        sampler = MixedBatchSampler(datasets_ls,
+                                    batch_size=self.data_loader_cfg.train.batch_size,
+                                    num_context_views=dataset_cfg['view_sampler']['num_context_views'],
+                                    world_size=world_size,
                                     rank=rank,
                                     prob=prob,
                                     generator=self.get_generator(self.data_loader_cfg.train))
@@ -190,5 +191,5 @@ class DataModule(LightningDataModule):
             worker_init_fn=worker_init_fn,
             persistent_workers=self.get_persistent(self.data_loader_cfg.test),
         )
-            
+
         return data_loader

@@ -19,6 +19,8 @@ class CheckpointingCfg:
     every_n_train_steps: int
     save_top_k: int
     save_weights_only: bool
+    no_strict_load: bool
+    pretrained_model: Optional[str]
 
 
 @dataclass
@@ -84,7 +86,7 @@ def separate_loss_cfg_wrappers(joined: dict) -> list[LossCfgWrapper]:
         for k, v in joined.items()
     ]
 
-
+# 数据集多个数据集
 def separate_dataset_cfg_wrappers(joined: dict) -> list[DatasetCfgWrapper]:
     # The dummy allows the union to be converted.
     @dataclass

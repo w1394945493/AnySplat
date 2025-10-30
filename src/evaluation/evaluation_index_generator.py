@@ -5,7 +5,8 @@ from typing import Optional
 
 import torch
 from einops import rearrange
-from lightning.pytorch import LightningModule
+# from lightning.pytorch import LightningModule
+from pytorch_lightning import LightningModule
 from tqdm import tqdm
 
 from ..geometry.epipolar_lines import project_rays

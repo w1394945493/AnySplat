@@ -1,4 +1,10 @@
+# 设置进程名
+from setproctitle import setproctitle
+setproctitle("wys")
+
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+
 from pathlib import Path
 
 import hydra
@@ -7,11 +13,20 @@ import wandb
 import random
 from colorama import Fore
 from jaxtyping import install_import_hook
-from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
-from lightning.pytorch.loggers.wandb import WandbLogger
-from lightning.pytorch.plugins.environments import SLURMEnvironment
-from lightning.pytorch.strategies import DeepSpeedStrategy
+
+# from lightning.pytorch import Trainer
+# from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+# from lightning.pytorch.loggers.wandb import WandbLogger
+# from lightning.pytorch.plugins.environments import SLURMEnvironment
+# from lightning.pytorch.strategies import DeepSpeedStrategy
+
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import (
+    LearningRateMonitor,
+    ModelCheckpoint,
+)
+from pytorch_lightning.loggers.wandb import WandbLogger
+
 from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
@@ -52,16 +67,20 @@ def cyan(text: str) -> str:
 def train(cfg_dict: DictConfig):
     cfg = load_typed_root_config(cfg_dict)
     set_cfg(cfg_dict)
-    
+
+
     # Set up the output directory.
-    output_dir = Path(
-        hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
-    )
+    if cfg_dict.output_dir is None:
+        output_dir = Path(
+            hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
+        )
+    else:
+        output_dir = Path(cfg_dict.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     print(cyan(f"Saving outputs to {output_dir}."))
-    
+
     cfg.train.output_path = output_dir
-    
+
     # Set up logging with wandb.
     callbacks = []
     if cfg_dict.wandb.mode != "disabled":
@@ -75,13 +94,13 @@ def train(cfg_dict: DictConfig):
             config=OmegaConf.to_container(cfg_dict),
         )
         callbacks.append(LearningRateMonitor("step", True))
-        
+
         # On rank != 0, wandb.run is None.
         if wandb.run is not None:
             wandb.run.log_code("src")
     else:
         logger = LocalLogger()
-    
+
     # Set up checkpointing.
     callbacks.append(
         ModelCheckpoint(
@@ -94,13 +113,13 @@ def train(cfg_dict: DictConfig):
         )
     )
     callbacks[-1].CHECKPOINT_EQUALS_CHAR = '_'
-    
+
     # Prepare the checkpoint for loading.
     checkpoint_path = update_checkpoint_path(cfg.checkpointing.load, cfg.wandb)
-    
+
     # This allows the current step to be shared with the data loader processes.
     step_tracker = StepTracker()
-    
+
     trainer = Trainer(
         max_epochs=-1,
         num_nodes=cfg.trainer.num_nodes,
@@ -126,9 +145,9 @@ def train(cfg_dict: DictConfig):
         inference_mode=False if (cfg.mode == "test" and cfg.test.align_pose) else True,
     )
     torch.manual_seed(cfg_dict.seed + trainer.global_rank)
-    
+
     model = get_model(cfg.model.encoder, cfg.model.decoder)
-    
+
     model_wrapper = ModelWrapper(
         cfg.optimizer,
         cfg.test,
@@ -143,10 +162,39 @@ def train(cfg_dict: DictConfig):
         step_tracker,
         global_rank=trainer.global_rank,
     )
-    
+
+    strict_load = not cfg.checkpointing.no_strict_load
     if cfg.mode == "train":
+
+        # load full model
+        if cfg.checkpointing.pretrained_model is not None:
+            pretrained_model = torch.load(cfg.checkpointing.pretrained_model, map_location='cpu')
+            if 'state_dict' in pretrained_model:
+                pretrained_model = pretrained_model['state_dict']
+
+            model_wrapper.load_state_dict(pretrained_model, strict=strict_load)
+            print(
+                cyan(
+                    f"Loaded pretrained weights: {cfg.checkpointing.pretrained_model}"
+                )
+            )
+
         trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
     else:
+        # load full model
+        if cfg.checkpointing.pretrained_model is not None:
+            # pretrained_model = torch.load(cfg.checkpointing.pretrained_model, map_location='cpu')
+            # if 'state_dict' in pretrained_model:
+            #     pretrained_model = pretrained_model['state_dict']
+            # model_wrapper.model.load_state_dict(pretrained_model, strict=strict_load)
+
+            model_wrapper.model.from_pretrained(cfg.checkpointing.pretrained_model)
+            print(
+                cyan(
+                    f"Loaded pretrained weights: {cfg.checkpointing.pretrained_model}"
+                )
+            )
+
         trainer.test(
             model_wrapper,
             datamodule=data_module,

@@ -9,14 +9,19 @@ from .view_sampler import get_view_sampler
 from .dataset_dl3dv import DatasetDL3DV, DatasetDL3DVCfgWrapper
 from .dataset_scannetpp import DatasetScannetpp, DatasetScannetppCfgWrapper
 from .dataset_co3d import DatasetCo3d, DatasetCo3dCfgWrapper
+# from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg
+from .dataset_omniscene import DatasetOmniScene, DatasetOmniSceneCfgWrapper
 
 DATASETS: dict[str, Dataset] = {
     "co3d": DatasetCo3d,
     "scannetpp": DatasetScannetpp,
     "dl3dv": DatasetDL3DV,
+    # "re10k": DatasetRE10k,
+    "omniscene": DatasetOmniScene,
 }
 
-DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper
+# DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper | DatasetRE10kCfg
+DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper | DatasetOmniSceneCfgWrapper
 
 class TestDatasetWarpper(Dataset):
     def __init__(self, dataset: Dataset):
@@ -25,12 +30,12 @@ class TestDatasetWarpper(Dataset):
     def __getitem__(self, idx):
 
         return self.dataset[(idx, self.dataset.view_sampler.num_context_views, self.dataset.cfg.input_image_shape[1] // 14)] # fake parameters here, to fit the input of dataset
-    
+
     def __len__(self):
         return len(self.dataset)
 
-        
-    
+
+
 class CustomConcatDataset(ConcatDataset):
 
     def __getitem__(self, idx_tuple):
@@ -64,7 +69,7 @@ def get_dataset(
         for cfg in cfgs:
             (field,) = fields(type(cfg))
             cfg = getattr(cfg, field.name)
-            
+
             view_sampler = get_view_sampler(
                 cfg.view_sampler,
                 stage,
@@ -82,7 +87,7 @@ def get_dataset(
         cfg = cfgs[0]
         (field,) = fields(type(cfg))
         cfg = getattr(cfg, field.name)
-        
+
         view_sampler = get_view_sampler(
             cfg.view_sampler,
             stage,

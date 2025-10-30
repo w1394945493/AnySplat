@@ -1,0 +1,50 @@
+# @package _global_
+defaults:
+  # - override /dataset: omniscene
+  # - /dataset: omniscene
+  - /dataset@_group_.omniscene: omniscene
+  - override /model/encoder: anysplat
+  - override /model/encoder/backbone: croco
+  - override /loss: [mse, lpips, depth_consis] # ablate: opacity loss
+
+
+dataset:
+  omniscene:
+    # input_image_shape: [112, 200]
+    input_image_shape: [112, 196]
+    roots: [datasets/omniscene]
+    near: 0.5
+    far: 100.
+    baseline_scale_bounds: false
+    make_baseline_1: false
+    train_times_per_scene: 1
+    highres: false
+
+model:
+  encoder:
+    gs_params_head_type: dpt_gs
+    pose_free: true
+    intrinsics_embed_loc: encoder
+    intrinsics_embed_type: token
+    pretrained_weights: ''
+    voxel_size: 0.002
+    pred_pose: true
+    anchor_feat_dim: 128
+    gs_prune: false # ablate: opacity loss
+    pred_head_type: depth
+    freeze_backbone: false
+    distill: true
+    render_conf: false
+    conf_threshold: 0.1
+    freeze_module: patch_embed
+    voxelize: true
+    intermediate_layer_idx: [4, 11, 17, 23]
+
+loss:
+  mse:
+    conf: false
+  lpips:
+    conf: false
+  depth_consis:
+    weight: 0.1
+    loss_type: MSE
