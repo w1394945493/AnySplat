@@ -402,20 +402,20 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                 del distill_depth_map, distill_depth_conf
                 torch.cuda.empty_cache()
         # todo ----------------------------------#
-        # todo aggregator: 几何Transformer
+        # todo 3.1 aggregator: 几何Transformer
         with torch.amp.autocast("cuda", enabled=True, dtype=torch.bfloat16):
             aggregated_tokens_list, patch_start_idx = self.aggregator(
                 image.to(torch.bfloat16),
                 intermediate_layer_idx=self.cfg.intermediate_layer_idx, # (4,11,17,23)
             )
         # todo ----------------------------------#
-        # todo camera_head: 相机位姿预测
+        # todo 3.2 camera_head: 相机位姿预测：由4个自注意力层和1个线性投影层组成
         with torch.amp.autocast("cuda", enabled=False):
             pred_pose_enc_list = self.camera_head(aggregated_tokens_list) # todo list: (1,2*bs,9) 相机位姿：9
             last_pred_pose_enc = pred_pose_enc_list[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(
                 last_pred_pose_enc, image.shape[-2:]
-            )  # only for debug
+            )  # only for debug # todo extrinsic,intrinsic: 预测的相机外参和内参
 
             if self.cfg.pred_head_type == "point":
                 pts_all, pts_conf = self.point_head(
@@ -423,15 +423,19 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                     images=image,
                     patch_start_idx=patch_start_idx,
                 )
+            # todo ----------------------------------------#
+            # todo DPT head：(Vision Transformers for Dense Prediction)
+            # todo 深度头FD：输入图像patch token，输出逐像素深度图和相应的置信度图
             elif self.cfg.pred_head_type == "depth": # todo pred_head_type: "depth"
+                # todo 深度图输入图像token，输出逐像素深度图以及相应置信度，深度值随后通过预测的相机位姿进行反投影，得到每个像素高斯的中心
                 depth_map, depth_conf = self.depth_head(
                     aggregated_tokens_list,
                     images=image,
-                    patch_start_idx=patch_start_idx,
-                )
+                    patch_start_idx=patch_start_idx, # todo patch_start_idx: 用于去除非视觉token, 使用patch_token
+                ) # todo 逐像素的深度图和相应的置信度图
                 pts_all = batchify_unproject_depth_map_to_point_map(
                     depth_map, extrinsic, intrinsic
-                )
+                ) # todo 将深度图通过预测的相机位姿反投影，得到每个高斯的中心
             else:
                 raise ValueError(f"Invalid pred_head_type: {self.cfg.pred_head_type}")
 
@@ -442,14 +446,15 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                 conf_valid_mask = depth_conf > conf_valid
             else:
                 conf_valid_mask = torch.ones_like(depth_conf, dtype=torch.bool)
+
         # todo ----------------------------------#
-        # todo 逐
+        # todo 3.3 逐像素高斯参数预测 高斯头：预测透明度、方向、尺度、SH颜色系数以及每个高斯的置信度
         # dpt style gs_head input format
         out = self.gaussian_param_head(
             aggregated_tokens_list,
-            pts_all.flatten(0, 1).permute(0, 3, 1, 2),
+            pts_all.flatten(0, 1).permute(0, 3, 1, 2), # todo 预测得到的每个像素高斯的中心
             image,
-            patch_start_idx=patch_start_idx,
+            patch_start_idx=patch_start_idx, # todo patch_start_idx: 去除非视觉token
             image_size=(h, w),
         )
 
@@ -460,7 +465,8 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
         scene_scale = pts_flat.norm(dim=-1).mean().clip(min=1e-8)
 
         anchor_feats, conf = out[:, :, : self.raw_gs_dim], out[:, :, self.raw_gs_dim]
-
+        # todo ----------------------------------#
+        # todo 3.4 可微体素化
         neural_feats_list, neural_pts_list = [], []
         if self.cfg.voxelize:
             for b_i in range(b):

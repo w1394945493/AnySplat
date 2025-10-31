@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# 设置进程名
+from setproctitle import setproctitle
+setproctitle("wys")
+
 import functools
 import gc
 import os
@@ -10,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-import gradio as gr
+import gradio as gr # todo 快速创建机器学习模型web界面的python库
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
@@ -197,20 +201,23 @@ def clear_fields():
 
 
 if __name__ == "__main__":
-    server_name = "127.0.0.1"
+    server_name = "127.0.0.1" # todo 服务/设备设置
     server_port = None
     share = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load model
-    model = AnySplat.from_pretrained(
-        "lhjiang/anysplat"
-    )
+    # model = AnySplat.from_pretrained(
+    #     "lhjiang/anysplat"
+    # )
+    model = AnySplat.from_pretrained("/home/lianghao/wangyushen/data/wangyushen/Weights/anysplat/pretrained")
+
     model = model.to(device)
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
 
+    # todo 主题与CSS
     theme = gr.themes.Ocean()
     theme.set(
         checkbox_label_background_fill_selected="*button_primary_background_fill",
@@ -255,6 +262,8 @@ if __name__ == "__main__":
         }
         """
     with gr.Blocks(css=css, title="AnySplat Demo", theme=theme) as demo:
+
+        # todo 顶部gr.Markdown用于标题
         gr.Markdown(
             """
             <h1 style='text-align: center;'>AnySplat: Feed-forward 3D Gaussian Splatting from Unconstrained Views</h1>

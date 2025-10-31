@@ -110,7 +110,7 @@ class DPTHead(nn.Module):
 
         head_features_1 = features
         head_features_2 = 32
-        
+
         if feature_only:
             self.scratch.output_conv1 = nn.Conv2d(head_features_1, head_features_1, kernel_size=3, stride=1, padding=1)
         else:
@@ -150,7 +150,7 @@ class DPTHead(nn.Module):
         B, S, _, H, W = images.shape
 
         # If frames_chunk_size is not specified or greater than S, process all frames at once
-        if frames_chunk_size is None or frames_chunk_size >= S:
+        if frames_chunk_size is None or frames_chunk_size >= S: # todo frames_chunk_size: 每次处理的帧块大小
             return self._forward_impl(aggregated_tokens_list, images, patch_start_idx)
 
         # Otherwise, process frames in chunks to manage memory usage
@@ -159,7 +159,7 @@ class DPTHead(nn.Module):
         # Process frames in batches
         all_preds = []
         all_conf = []
-        
+
         for frames_start_idx in range(0, S, frames_chunk_size):
             frames_end_idx = min(frames_start_idx + frames_chunk_size, S)
 
@@ -175,7 +175,7 @@ class DPTHead(nn.Module):
                 )
                 all_preds.append(chunk_preds)
                 all_conf.append(chunk_conf)
-        
+
         # Concatenate results along the sequence dimension
         if self.feature_only:
             return torch.cat(all_preds, dim=1)
@@ -206,19 +206,20 @@ class DPTHead(nn.Module):
             Tensor or Tuple[Tensor, Tensor]: Feature maps or (predictions, confidence).
         """
         if frames_start_idx is not None and frames_end_idx is not None:
-            images = images[:, frames_start_idx:frames_end_idx]
+            images = images[:, frames_start_idx:frames_end_idx] # todo 截取部分帧进行处理
 
         B, S, _, H, W = images.shape
 
-        patch_h, patch_w = H // self.patch_size, W // self.patch_size
+        patch_h, patch_w = H // self.patch_size, W // self.patch_size # todo 确定输入分成多少patch(transformer输入单位)
 
         out = []
         dpt_idx = 0
-        
+
+        # todo 对每个中间层进行处理
         for layer_idx in self.intermediate_layer_idx:
             # x = aggregated_tokens_list[layer_idx][:, :, patch_start_idx:]
-            if len(aggregated_tokens_list) > 10:
-                x = aggregated_tokens_list[layer_idx][:, :, patch_start_idx:]
+            if len(aggregated_tokens_list) > 10: # todo aggregated_tokens_list：Transformer各层输出的token特征 (B,S,n_tokens,C) 批量x图像数xtoken数x通道数
+                x = aggregated_tokens_list[layer_idx][:, :, patch_start_idx:] # todo 从指定的transformer层提取patch token，patch_start_idx: 用于去除非视觉token
             else:
                 list_idx = self.intermediate_layer_idx.index(layer_idx)
                 x = aggregated_tokens_list[list_idx][:, :, patch_start_idx:]
@@ -226,23 +227,22 @@ class DPTHead(nn.Module):
             # Select frames if processing a chunk
             if frames_start_idx is not None and frames_end_idx is not None:
                 x = x[:, frames_start_idx:frames_end_idx].contiguous()
-
+            # todo:
             x = x.view(B * S, -1, x.shape[-1])
-            x = self.norm(x)
-            
+            x = self.norm(x) # todo layerNorm归一化
             x = x.permute(0, 2, 1).reshape((x.shape[0], x.shape[-1], patch_h, patch_w))
-
+            # todo：逐层映射+位置编码
             x = self.projects[dpt_idx](x)
             if self.pos_embed:
                 x = self._apply_pos_embed(x, W, H)
-
             x = self.resize_layers[dpt_idx](x)
-            
+
             out.append(x)
             dpt_idx += 1
-
+        # todo：多层特征融合：
         # Fuse features from multiple layers.
         out = self.scratch_forward(out)
+        # todo：插值回原图像大小
         # Interpolate fused output to match target image resolution.
         out = custom_interpolate(
             out,
@@ -255,8 +255,9 @@ class DPTHead(nn.Module):
             out = self._apply_pos_embed(out, W, H)
 
         if self.feature_only:
-            return out.view(B, S, *out.shape[1:])
+            return out.view(B, S, *out.shape[1:]) # todo 只要特征图：立即返回
 
+        # todo：生成预测图，对预测值和置信度值做激活函数处理
         out = self.scratch.output_conv2(out)
         preds, conf = activate_head(out, activation=self.activation, conf_activation=self.conf_activation)
 
@@ -486,7 +487,7 @@ def custom_interpolate(
     """
     if size is None:
         size = (int(x.shape[-2] * scale_factor), int(x.shape[-1] * scale_factor))
-    
+
     INT_MAX = 1610612736
 
     input_elements = size[0] * size[1] * x.shape[0] * x.shape[1]

@@ -318,23 +318,24 @@ class ModelWrapper(LightningModule):
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
-
         # Render Gaussians.
         with self.benchmarker.time("encoder"):
             # gaussians = self.model.encoder(
             #     (batch["context"]["image"]+1)/2,
             #     self.global_step,
-            # )[0]
-            gaussians = self.model.encoder(
-                (batch["context"]["image"]+1)/2,
-                self.global_step,
-            ).gaussians
+            # )[0] # todo 原代码这里似乎有点错误
+
+            encoder_output = self.model.encoder((batch["context"]["image"]+1)/2,self.global_step)
+            # todo 高斯、预测的相机位姿
+            gaussians, pred_context_pose = encoder_output.gaussians, encoder_output.pred_context_pose
+
         # export_ply(gaussians.means[0], gaussians.scales[0], gaussians.rotations[0], gaussians.harmonics[0], gaussians.opacities[0], Path("gaussians.ply"))
         # align the target pose
-        if self.test_cfg.align_pose:
+        if self.test_cfg.align_pose: # todo: 设为false
             output = self.test_step_align(batch, gaussians)
         else:
             with self.benchmarker.time("decoder", num_calls=v):
+                # todo 渲染图像
                 output = self.model.decoder.forward(
                     gaussians,
                     batch["target"]["extrinsics"],

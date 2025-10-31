@@ -32,7 +32,7 @@ def main():
     b, v, _, h, w = images.shape
 
     # Run Inference
-    gaussians, pred_context_pose = model.inference((images+1)*0.5)
+    gaussians, pred_context_pose = model.inference((images+1)*0.5) # todo 推理和可视化时，把图像恢复到0-1
 
     # Save the results
     pred_all_extrinsic = pred_context_pose['extrinsic']

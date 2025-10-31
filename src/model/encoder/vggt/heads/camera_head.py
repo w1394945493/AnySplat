@@ -46,7 +46,7 @@ class CameraHead(nn.Module):
         self.quat_act = quat_act
         self.fl_act = fl_act
         self.trunk_depth = trunk_depth
-        
+
         # Build the trunk using a sequence of transformer blocks.
         self.trunk = nn.Sequential(
             *[
@@ -59,7 +59,7 @@ class CameraHead(nn.Module):
                 for _ in range(trunk_depth)
             ]
         )
-        
+
         # Normalizations for camera token and trunk output.
         self.token_norm = nn.LayerNorm(dim_in)
         self.trunk_norm = nn.LayerNorm(dim_in)
@@ -79,7 +79,7 @@ class CameraHead(nn.Module):
             out_features=self.target_dim,
             drop=0,
         )
-    
+
     def forward(self, aggregated_tokens_list: list, num_iterations: int = 4) -> list:
         """
         Forward pass to predict camera parameters.
@@ -93,13 +93,13 @@ class CameraHead(nn.Module):
             list: A list of predicted camera encodings (post-activation) from each iteration.
         """
         # Use tokens from the last block for camera prediction.
-        tokens = aggregated_tokens_list[-1]
+        tokens = aggregated_tokens_list[-1] # todo 使用最后一层token来进行相机位姿估计
 
         # Extract the camera tokens
-        pose_tokens = tokens[:, :, 0]
+        pose_tokens = tokens[:, :, 0] # todo 取出可学习的相机token
 
-        pose_tokens = self.token_norm(pose_tokens)
-        
+        pose_tokens = self.token_norm(pose_tokens) # todo layerNorm
+        # todo  由4个自注意力层和一个线性投影层组成，用于预测每个相机的参数
         pred_pose_enc_list = self.trunk_fn(pose_tokens, num_iterations)
         return pred_pose_enc_list
 
@@ -129,11 +129,11 @@ class CameraHead(nn.Module):
 
             # Generate modulation parameters and split them into shift, scale, and gate components.
             shift_msa, scale_msa, gate_msa = self.poseLN_modulation(module_input).chunk(3, dim=-1)
-            
+
             # Adaptive layer normalization and modulation.
             pose_tokens_modulated = gate_msa * modulate(self.adaln_norm(pose_tokens), shift_msa, scale_msa)
             pose_tokens_modulated = pose_tokens_modulated + pose_tokens
-            
+
             pose_tokens_modulated = torch.utils.checkpoint.checkpoint(
                 self.trunk,
                 pose_tokens_modulated,
