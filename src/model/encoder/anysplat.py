@@ -401,15 +401,17 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                 del distill_extrinsic, distill_intrinsic
                 del distill_depth_map, distill_depth_conf
                 torch.cuda.empty_cache()
-
+        # todo ----------------------------------#
+        # todo aggregator: 几何Transformer
         with torch.amp.autocast("cuda", enabled=True, dtype=torch.bfloat16):
             aggregated_tokens_list, patch_start_idx = self.aggregator(
                 image.to(torch.bfloat16),
-                intermediate_layer_idx=self.cfg.intermediate_layer_idx,
+                intermediate_layer_idx=self.cfg.intermediate_layer_idx, # (4,11,17,23)
             )
-
+        # todo ----------------------------------#
+        # todo camera_head: 相机位姿预测
         with torch.amp.autocast("cuda", enabled=False):
-            pred_pose_enc_list = self.camera_head(aggregated_tokens_list)
+            pred_pose_enc_list = self.camera_head(aggregated_tokens_list) # todo list: (1,2*bs,9) 相机位姿：9
             last_pred_pose_enc = pred_pose_enc_list[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(
                 last_pred_pose_enc, image.shape[-2:]
@@ -421,7 +423,7 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                     images=image,
                     patch_start_idx=patch_start_idx,
                 )
-            elif self.cfg.pred_head_type == "depth":
+            elif self.cfg.pred_head_type == "depth": # todo pred_head_type: "depth"
                 depth_map, depth_conf = self.depth_head(
                     aggregated_tokens_list,
                     images=image,
@@ -440,7 +442,8 @@ class EncoderAnySplat(Encoder[EncoderAnySplatCfg]):
                 conf_valid_mask = depth_conf > conf_valid
             else:
                 conf_valid_mask = torch.ones_like(depth_conf, dtype=torch.bool)
-
+        # todo ----------------------------------#
+        # todo 逐
         # dpt style gs_head input format
         out = self.gaussian_param_head(
             aggregated_tokens_list,

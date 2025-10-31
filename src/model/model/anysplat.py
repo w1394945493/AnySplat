@@ -21,7 +21,7 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         self,
         encoder_cfg: EncoderAnySplatCfg,
         decoder_cfg: DecoderSplattingCUDACfg,
-    ):  
+    ):
         super(AnySplat, self).__init__()
         self.encoder_cfg = encoder_cfg
         self.decoder_cfg = decoder_cfg
@@ -30,11 +30,11 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
     def convert_nested_config(self, cfg_dict: dict, target_class: type):
         """Convert nested dictionary config to dataclass instance
-        
+
         Args:
             cfg_dict: Configuration dictionary or already converted object
             target_class: Target dataclass type to convert to
-            
+
         Returns:
             Instance of target_class
         """
@@ -52,27 +52,27 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
     def convert_config_recursively(self, cfg_obj, conversion_map: dict):
         """Convert nested configurations recursively using a conversion map
-        
+
         Args:
             cfg_obj: Configuration object to convert
             conversion_map: Dict mapping field names to their target classes
                            e.g., {'gaussian_adapter': GaussianAdapterCfg}
-        
+
         Returns:
             Converted configuration object
         """
         if not hasattr(cfg_obj, '__dict__'):
             return cfg_obj
-            
+
         cfg_dict = cfg_obj.__dict__.copy()
-        
+
         for field_name, target_class in conversion_map.items():
             if field_name in cfg_dict:
                 cfg_dict[field_name] = self.convert_nested_config(
-                    cfg_dict[field_name], 
+                    cfg_dict[field_name],
                     target_class
                 )
-        
+
         # Return new instance of the same type
         return type(cfg_obj)(**cfg_dict)
 
@@ -82,7 +82,7 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
             'gaussian_adapter': GaussianAdapterCfg,
             'opacity_mapping': OpacityMappingCfg,
         }
-        
+
         return self.convert_config_recursively(encoder_cfg, conversion_map)
 
     def build_encoder(self, encoder_cfg: EncoderAnySplatCfg):
@@ -92,17 +92,17 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
     def build_decoder(self, decoder_cfg: DecoderSplattingCUDACfg):
         self.decoder = DecoderSplattingCUDA(decoder_cfg)
-    
+
     @torch.no_grad()
     def inference(self,
         context_image: torch.Tensor,
     ):
         self.encoder.distill = False
-        encoder_output = self.encoder(context_image, global_step=0, visualization_dump=None)
+        encoder_output = self.encoder(context_image, global_step=0, visualization_dump=None) # context_image: (b,v,3,h,w)
         gaussians, pred_context_pose = encoder_output.gaussians, encoder_output.pred_context_pose
         return gaussians, pred_context_pose
-    
-    def forward(self, 
+
+    def forward(self,
         context_image: torch.Tensor,
         global_step: int = 0,
         visualization_dump: Optional[dict] = None,
@@ -123,4 +123,4 @@ class AnySplat(nn.Module, huggingface_hub.PyTorchModelHubMixin):
             "depth",
         )
         return encoder_output, output
-    
+

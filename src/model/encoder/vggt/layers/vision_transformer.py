@@ -92,12 +92,12 @@ class DinoVisionTransformer(nn.Module):
         """
         super().__init__()
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
-        
+
         # tricky but makes it work
         self.use_checkpoint = True
         self.use_reentrant = False
         #
-        
+
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         self.num_tokens = 1
         self.n_blocks = depth
@@ -238,7 +238,7 @@ class DinoVisionTransformer(nn.Module):
 
     def forward_features_list(self, x_list, masks_list):
         x = [self.prepare_tokens_with_masks(x, masks) for x, masks in zip(x_list, masks_list)]
-    
+
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint(blk, x, use_reentrant=self.use_reentrant)
@@ -260,7 +260,7 @@ class DinoVisionTransformer(nn.Module):
             )
         return output
 
-    def forward_features(self, x, masks=None):
+    def forward_features(self, x, masks=None): # todo x: (b,c,h,w)
         if isinstance(x, list):
             return self.forward_features_list(x, masks)
 
@@ -272,7 +272,7 @@ class DinoVisionTransformer(nn.Module):
             else:
                 x = blk(x)
 
-        x_norm = self.norm(x)
+        x_norm = self.norm(x) # todo (bs,p,c) -> (bs,p,c)
         return {
             "x_norm_clstoken": x_norm[:, 0],
             "x_norm_regtokens": x_norm[:, 1 : self.num_register_tokens + 1],
@@ -348,7 +348,7 @@ def init_weights_vit_timm(module: nn.Module, name: str = ""):
         if module.bias is not None:
             nn.init.zeros_(module.bias)
 
-
+# todo vit-s：embed_dim=384 depth=12 num_heads=6
 def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
     model = DinoVisionTransformer(
         patch_size=patch_size,
@@ -362,7 +362,7 @@ def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
     )
     return model
 
-
+# todo vit-base：embed_dim=768 depth=12 num_heads=12
 def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
     model = DinoVisionTransformer(
         patch_size=patch_size,
@@ -376,7 +376,7 @@ def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
     )
     return model
 
-
+# todo vit-l：embed_dim=1024 depth=24 num_heads=16
 def vit_large(patch_size=16, num_register_tokens=0, **kwargs):
     model = DinoVisionTransformer(
         patch_size=patch_size,

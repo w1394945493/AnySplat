@@ -69,12 +69,12 @@ class Aggregator(nn.Module):
     ):
         super().__init__()
         self.use_checkpoint = True
-        self.__build_patch_embed__(patch_embed, img_size, patch_size, num_register_tokens, embed_dim=embed_dim)
+        self.__build_patch_embed__(patch_embed, img_size, patch_size, num_register_tokens, embed_dim=embed_dim) # todo self.patch_embed: VIT
 
         # Initialize rotary position embedding if frequency > 0
         self.rope = RotaryPositionEmbedding2D(frequency=rope_freq) if rope_freq > 0 else None
         self.position_getter = PositionGetter() if self.rope is not None else None
-        
+
         self.frame_blocks = nn.ModuleList(
             [
                 block_fn(
@@ -142,7 +142,7 @@ class Aggregator(nn.Module):
                 torch.FloatTensor(value).view(1, 1, 3, 1, 1),
                 persistent=False,
             )
-    
+
     def __build_patch_embed__(
         self,
         patch_embed,
@@ -159,7 +159,7 @@ class Aggregator(nn.Module):
         Build the patch embed layer. If 'conv', we use a
         simple PatchEmbed conv layer. Otherwise, we use a vision transformer.
         """
-        
+
         if "conv" in patch_embed:
             self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_chans=3, embed_dim=embed_dim)
         else:
@@ -169,7 +169,7 @@ class Aggregator(nn.Module):
                 "dinov2_vits14_reg": vit_small,
                 "dinov2_vitg2_reg": vit_giant2,
             }
-
+            # todo patch_embed: "dinov2_vitl14_reg"
             self.patch_embed = vit_models[patch_embed](
                 img_size=img_size,
                 patch_size=patch_size,
@@ -203,25 +203,26 @@ class Aggregator(nn.Module):
 
         if C_in != 3:
             raise ValueError(f"Expected 3 input channels, got {C_in}")
-        
+
         # Normalize images and reshape for patch embed
         images = (images - self._resnet_mean) / self._resnet_std
-
+        # todo ------------------------------#
+        # todo 参照VGGT，使用DINOv2将每个图像划分为 HxW/p^2 个，d=1024维度的token,
         # Reshape to [B*S, C, H, W] for patch embedding
-        images = images.view(B * S, C_in, H, W)
-        patch_tokens = self.patch_embed(images)
+        images = images.view(B * S, C_in, H, W) # (bs,c,h,w)
+        patch_tokens = self.patch_embed(images) # todo: cls_token: (bs,1024) reg_token: (bs,4,1024) patchtokens: (bs,HxW/p^2,1024) prenorm: (bs,HxW/p^2+1+4,1024) masks:None
 
         if isinstance(patch_tokens, dict):
-            patch_tokens = patch_tokens["x_norm_patchtokens"]
+            patch_tokens = patch_tokens["x_norm_patchtokens"] # todo (bs,HxW/p^2,1024)
 
-        _, P, C = patch_tokens.shape
-
+        _, P, C = patch_tokens.shape # todo P: HxW/p^2, C: 1024
+        # todo 对于每个token，在前面添加一个可学习的相机toekn和4个register token
         # Expand camera and register tokens to match batch size and sequence length
-        camera_token = slice_expand_and_flatten(self.camera_token, B, S)
-        register_token = slice_expand_and_flatten(self.register_token, B, S)
+        camera_token = slice_expand_and_flatten(self.camera_token, B, S) # todo self.camera_token: (1,2,1,1024) camera_token: (bs,1,1024)
+        register_token = slice_expand_and_flatten(self.register_token, B, S) # todo self.register_token: (1,2,4,1024) register_token: (bs,4,1024)
 
         # Concatenate special tokens with patch tokens
-        tokens = torch.cat([camera_token, register_token, patch_tokens], dim=1)
+        tokens = torch.cat([camera_token, register_token, patch_tokens], dim=1) # todo 可学习camera token + 4个register token +  HW/p^2个patch token
 
         pos = None
         if self.rope is not None:
@@ -241,14 +242,14 @@ class Aggregator(nn.Module):
         global_idx = 0
         output_list = []
         layer_idx = 0
-        
+
         # Convert intermediate_layer_idx to a set for O(1) lookup
         if intermediate_layer_idx is not None:
             required_layers = set(intermediate_layer_idx)
             # Always include the last layer for camera_head
             required_layers.add(self.depth - 1)
-
-        for _ in range(self.aa_block_num):
+        # todo 所有视图的组合tokens，经过L层的交替注意力Transformer处理：每一层先经过帧注意力处理，再对所有视图联合使用全局注意力进行处理
+        for _ in range(self.aa_block_num): # todo self.aa_block_num: 24
             for attn_type in self.aa_order:
                 if attn_type == "frame":
                     tokens, frame_idx, frame_intermediates = self._process_frame_attention(
@@ -261,7 +262,7 @@ class Aggregator(nn.Module):
                 else:
                     raise ValueError(f"Unknown attention type: {attn_type}")
 
-            if intermediate_layer_idx is not None:
+            if intermediate_layer_idx is not None: # todo 取中间层输出：
                 for i in range(len(frame_intermediates)):
                     current_layer = layer_idx + i
                     if current_layer in required_layers:
@@ -269,17 +270,17 @@ class Aggregator(nn.Module):
                         concat_inter = torch.cat([frame_intermediates[i], global_intermediates[i]], dim=-1)
                         output_list.append(concat_inter)
                 layer_idx += self.aa_block_size
-            
+
             else:
                 for i in range(len(frame_intermediates)):
                     # concat frame and global intermediates, [B x S x P x 2C]
                     concat_inter = torch.cat([frame_intermediates[i], global_intermediates[i]], dim=-1)
                     output_list.append(concat_inter)
-        
+
         del concat_inter
         del frame_intermediates
         del global_intermediates
-        return output_list, self.patch_start_idx
+        return output_list, self.patch_start_idx # todo output_list: 迭代注意力中间层
 
     def _process_frame_attention(self, tokens, B, S, P, C, frame_idx, pos=None):
         """
@@ -293,7 +294,7 @@ class Aggregator(nn.Module):
             pos = pos.view(B, S, P, 2).view(B * S, P, 2)
 
         intermediates = []
-        
+
         # by default, self.aa_block_size=1, which processes one block at a time
         for _ in range(self.aa_block_size):
             if self.use_checkpoint:
@@ -321,7 +322,7 @@ class Aggregator(nn.Module):
             pos = pos.view(B, S, P, 2).view(B, S * P, 2)
 
         intermediates = []
-        
+
         # by default, self.aa_block_size=1, which processes one block at a time
         for _ in range(self.aa_block_size):
             if self.use_checkpoint:

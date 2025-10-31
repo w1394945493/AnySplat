@@ -62,16 +62,16 @@ TYPE_HOOKS = {
 
 T = TypeVar("T")
 
-
+# todo OmegaConf.to_container(): 把一个OmegaaConf配置对象转化为标准的Python容器类型(dict或list)
 def load_typed_config(
     cfg: DictConfig,
     data_class: Type[T],
     extra_type_hooks: dict = {},
 ) -> T:
-    return from_dict(
+    return from_dict( # todo 将一个python字典转换为指定数据类对象：具体的，会解析字典中的键值对，并使用这些值来填充数据类的属性
         data_class,
         OmegaConf.to_container(cfg),
-        config=Config(type_hooks={**TYPE_HOOKS, **extra_type_hooks}),
+        config=Config(type_hooks={**TYPE_HOOKS, **extra_type_hooks}), # todo 用于允许对数据类中的某些字段或类型进行自定义处理
     )
 
 
