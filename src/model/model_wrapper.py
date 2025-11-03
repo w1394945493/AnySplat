@@ -315,9 +315,10 @@ class ModelWrapper(LightningModule):
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
         b, v, _, h, w = batch["target"]["image"].shape
-        assert b == 1
-        if batch_idx % 100 == 0:
-            print(f"Test step {batch_idx:0>6}.")
+        # assert b == 1
+        # if batch_idx % 100 == 0:
+        #     print(f"Test step {batch_idx:0>6}.")
+
         # Render Gaussians.
         with self.benchmarker.time("encoder"):
             # gaussians = self.model.encoder(
@@ -325,7 +326,10 @@ class ModelWrapper(LightningModule):
             #     self.global_step,
             # )[0] # todo 原代码这里似乎有点错误
 
-            encoder_output = self.model.encoder((batch["context"]["image"]+1)/2,self.global_step)
+            encoder_output = self.model.encoder(
+                # (batch["context"]["image"]+1)/2,
+                batch["context"]["image"],
+                self.global_step)
             # todo 高斯、预测的相机位姿
             gaussians, pred_context_pose = encoder_output.gaussians, encoder_output.pred_context_pose
 
@@ -347,11 +351,16 @@ class ModelWrapper(LightningModule):
 
         # compute scores
         if self.test_cfg.compute_scores:
-            overlap = batch["context"]["overlap"][0]
-            overlap_tag = get_overlap_tag(overlap)
 
-            rgb_pred = output.color[0]
-            rgb_gt = batch["target"]["image"][0]
+            # overlap = batch["context"]["overlap"][0]
+            # overlap_tag = get_overlap_tag(overlap)
+            overlap_tag = None
+
+            # rgb_pred = output.color[0]
+            # rgb_gt = batch["target"]["image"][0]
+            rgb_pred = rearrange(output.color,'b v c h w -> (b v) c h w')
+            rgb_gt = rearrange(batch["target"]["image"],'b v c h w -> (b v) c h w')
+
             all_metrics = {
                 f"lpips_ours": compute_lpips(rgb_gt, rgb_pred).mean(),
                 f"ssim_ours": compute_ssim(rgb_gt, rgb_pred).mean(),
@@ -363,19 +372,40 @@ class ModelWrapper(LightningModule):
             self.print_preview_metrics(all_metrics, methods, overlap_tag=overlap_tag)
 
         # Save images.
-        (scene,) = batch["scene"]
+        # (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
+
         if self.test_cfg.save_image:
-            for index, color in zip(batch["target"]["index"][0], output.color[0]):
-                save_image(color, path / scene / f"color/{index:0>6}.png")
+
+            for b_i in range(b):
+                scene = batch["scene"][b_i]
+
+                images_prob = output.color[b_i]
+                rgb_gt = batch["target"]["image"][b_i]
+                bs_index = batch["target"]["index"][b_i]
+
+                for index, color in zip(bs_index, images_prob):
+                    save_image(color, path / scene / f"color/{index:0>6}.png")
+                    color_gt = rgb_gt[index]
+                    save_image(color_gt, path / scene / f"color/{index:0>6}_gt.png")
+
+        # if self.test_cfg.save_video:
+        #     frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
+        #     save_video(
+        #         [a for a in output.color[0]],
+        #         path / "video" / f"{scene}_frame_{frame_str}.mp4",
+        #     )
 
         if self.test_cfg.save_video:
-            frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
-            save_video(
-                [a for a in output.color[0]],
-                path / "video" / f"{scene}_frame_{frame_str}.mp4",
-            )
+            for b_i in range(b):
+                scene = batch["scene"][b_i]
+                images_prob = output.color[b_i]
+                frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][b_i]])
+                save_video(
+                    [a for a in images_prob],
+                    path / "video" / f"{scene}_frame_{frame_str}.mp4",
+                )
 
         if self.test_cfg.save_compare:
             # Construct comparison image.

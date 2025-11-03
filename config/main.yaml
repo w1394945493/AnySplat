@@ -56,7 +56,7 @@ train:
 test:
   output_path: outputs/test-nopo
   align_pose: true
-  pose_align_steps: 100 
+  pose_align_steps: 100
   rot_opt_lr:  0.005
   trans_opt_lr:  0.005
   compute_scores: true

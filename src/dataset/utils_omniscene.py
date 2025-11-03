@@ -100,8 +100,9 @@ def load_conditions(img_paths, reso, is_input=False, load_rel_depth=False):
             mask = mask / 255.0
         masks.append(mask)
 
-    imgs = torch.from_numpy(np.stack(imgs, axis=0)).permute(0, 3, 1, 2).float() / 255.0  # [v c h w]
+    imgs_tensor = torch.from_numpy(np.stack(imgs, axis=0)).permute(0, 3, 1, 2).float() / 255.0  # [v c h w]
+    # imgs_tensor = imgs_tensor *2.0-1.0
     masks = torch.from_numpy(np.stack(masks, axis=0)).bool()  # [v h w]
     cks = torch.as_tensor(cks, dtype=torch.float32)
 
-    return imgs, masks, cks
+    return imgs_tensor, masks, cks

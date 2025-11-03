@@ -1,13 +1,13 @@
 defaults:
-  - view_sampler: all
+  - view_sampler: bounded_re10k
 
-name: omniscene
-roots: [datasets/omniscene]
+name: re10k
+roots: [datasets/re10k]
 make_baseline_1: false
 augment: true
 
-input_image_shape: [224, 400]
-original_image_shape: [224,400]
+input_image_shape: [180, 320]
+original_image_shape: [180, 320]
 background_color: [0.0, 0.0, 0.0]
 cameras_are_circular: false
 

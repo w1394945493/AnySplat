@@ -33,7 +33,7 @@ def rescale_depth(
     depth_new = cv2.resize(depth_new, (w,h), interpolation=cv2.INTER_NEAREST)
     depth_new = torch.from_numpy(depth_new).to(depth.device)
     return depth_new
-    
+
 def center_crop(
     images: Float[Tensor, "*#batch c h w"],
     intrinsics: Float[Tensor, "*#batch 3 3"],
@@ -62,7 +62,7 @@ def center_crop(
     intrinsics[..., 0, 0] *= w_in / w_out  # fx
     intrinsics[..., 1, 1] *= h_in / h_out  # fy
 
-    
+
     if depths is not None:
         return images, intrinsics, depths
     else:
@@ -87,7 +87,7 @@ def rescale_and_crop(
         for i in range(len(images)):
             image = images[i]
             intrinsic = intrinsics[i]
-            
+
             *_, h_in, w_in = image.shape
             h_out, w_out = shape
 
@@ -97,12 +97,12 @@ def rescale_and_crop(
             image = F.resize(image, (h_scaled, w_scaled))
             image = F.center_crop(image, (h_out, w_out))
             images_new.append(image)
-            
+
             intrinsic_new = intrinsic.clone()
             intrinsic_new[..., 0, 0] *= w_scaled / w_in  # fx
             intrinsic_new[..., 1, 1] *= h_scaled / h_in  # fy
             intrinsics_new.append(intrinsic_new)
-        
+
         if depths is not None:
             depths_new = []
             for i in range(len(depths)):
@@ -113,13 +113,13 @@ def rescale_and_crop(
             return torch.stack(images_new), torch.stack(intrinsics_new), torch.stack(depths_new)
         else:
             return torch.stack(images_new), torch.stack(intrinsics_new)
-    
+
     else:
         # we only support intr_aug for clean datasets
         *_, h_in, w_in = images.shape
         h_out, w_out = shape
         # assert h_out <= h_in and w_out <= w_in # to avoid the case that the image is too small, like co3d
-        
+
         if intr_aug:
             scale = random.uniform(*scale_range)
             h_scale = round(h_out * scale)
@@ -145,20 +145,20 @@ def rescale_and_crop(
                 depths_new = []
                 for i in range(len(depths)):
                     depth = depths[i]
-                    depth = rescale_depth(depth, (h_scaled, w_scaled)) 
+                    depth = rescale_depth(depth, (h_scaled, w_scaled))
                     depths_new.append(depth)
                 depths = torch.stack(depths_new)
             else:
                 depths = depths.reshape(-1, h, w)
                 depths = torch.stack([rescale_depth(depth, (h_scaled, w_scaled)) for depth in depths])
                 depths = depths.reshape(*batch, h_scaled, w_scaled)
-            
+
             images, intrinsics, depths = center_crop(images, intrinsics, (h_scale, w_scale), depths)
 
             if intr_aug:
                 images = F.resize(images, size=(h_out, w_out), interpolation=F.InterpolationMode.BILINEAR)
                 depths = F.resize(depths, size=(h_out, w_out), interpolation=F.InterpolationMode.NEAREST)
-                
+
             return images, intrinsics, depths
         else:
             images, intrinsics = center_crop(images, intrinsics, (h_scale, w_scale))
@@ -185,7 +185,7 @@ def apply_crop_shim_to_views(views: AnyViews, shape: tuple[int, int], intr_aug: 
             "image": images,
             "intrinsics": intrinsics,
         }
-        
+
 
 def apply_crop_shim(example: AnyExample, shape: tuple[int, int], intr_aug: bool = False) -> AnyExample:
     """Crop images in the example."""
@@ -193,4 +193,107 @@ def apply_crop_shim(example: AnyExample, shape: tuple[int, int], intr_aug: bool 
         **example,
         "context": apply_crop_shim_to_views(example["context"], shape, intr_aug),
         "target": apply_crop_shim_to_views(example["target"], shape, intr_aug),
+    }
+
+
+
+#?
+def center_crop_re10k(
+    images: Float[Tensor, "*#batch c h w"],
+    intrinsics: Float[Tensor, "*#batch 3 3"],
+    shape: tuple[int, int],
+    depths: None | Float[Tensor, "*#batch h w"],
+) -> (
+    tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+    ]
+    | tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+        Float[Tensor, "*#batch h_out w_out"],  # updated depths
+    ]
+):
+    *_, h_in, w_in = images.shape
+    h_out, w_out = shape
+
+    # Note that odd input dimensions induce half-pixel misalignments.
+    row = (h_in - h_out) // 2
+    col = (w_in - w_out) // 2
+
+    # Center-crop the image.
+    images = images[..., :, row : row + h_out, col : col + w_out]
+
+    # Adjust the intrinsics to account for the cropping.
+    intrinsics = intrinsics.clone()
+    intrinsics[..., 0, 0] *= w_in / w_out  # fx
+    intrinsics[..., 1, 1] *= h_in / h_out  # fy
+
+    if depths is not None:
+        depths = depths[..., :, row : row + h_out, col : col + w_out]
+        return images, intrinsics, depths
+
+    return images, intrinsics
+
+def rescale_and_crop_re10k(
+    images: Float[Tensor, "*#batch c h w"],
+    intrinsics: Float[Tensor, "*#batch 3 3"],
+    shape: tuple[int, int],
+    depths: None | Float[Tensor, "*#batch h w"],
+) -> (
+    tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+    ]
+    | tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+        Float[Tensor, "*#batch h_out w_out"],  # updated depths
+    ]
+):
+    *_, h_in, w_in = images.shape
+    h_out, w_out = shape
+    assert h_out <= h_in and w_out <= w_in
+
+    scale_factor = max(h_out / h_in, w_out / w_in)
+    h_scaled = round(h_in * scale_factor)
+    w_scaled = round(w_in * scale_factor)
+    assert h_scaled == h_out or w_scaled == w_out
+
+    # Reshape the images to the correct size. Assume we don't have to worry about
+    # changing the intrinsics based on how the images are rounded.
+    *batch, c, h, w = images.shape
+    images = images.reshape(-1, c, h, w)
+    images = torch.stack([rescale(image, (h_scaled, w_scaled)) for image in images])
+    images = images.reshape(*batch, c, h_scaled, w_scaled)
+
+    # reshape and crop depth as well when available
+    if depths is not None:
+        depths = F.interpolate(
+            depths.unsqueeze(1),
+            size=(h_scaled, w_scaled),
+            mode="bilinear",
+            align_corners=True,
+        ).squeeze(1)
+
+    return center_crop_re10k(images, intrinsics, shape, depths=depths)
+
+
+def apply_crop_shim_to_views_re10k(views: AnyViews, shape: tuple[int, int]) -> AnyViews:
+    images, intrinsics = rescale_and_crop_re10k(
+        views["image"], views["intrinsics"], shape, depths=None
+    )
+    return {
+        **views,
+        "image": images,
+        "intrinsics": intrinsics,
+    }
+
+
+def apply_crop_shim_re10k(example: AnyExample, shape: tuple[int, int]) -> AnyExample:
+    """Crop images in the example."""
+    return {
+        **example,
+        "context": apply_crop_shim_to_views_re10k(example["context"], shape),
+        "target": apply_crop_shim_to_views_re10k(example["target"], shape),
     }

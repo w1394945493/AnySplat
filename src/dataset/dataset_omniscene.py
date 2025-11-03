@@ -86,7 +86,7 @@ bins_dynamic_demo = [
 ]
 
 
-# from .dataset import DatasetCfgCommon
+from .dataset import DatasetCfgCommon
 from .view_sampler import ViewSampler,ViewSamplerCfg
 
 # @dataclass
@@ -98,13 +98,7 @@ from .view_sampler import ViewSampler,ViewSamplerCfg
 #     overfit_to_scene: str | None
 #     view_sampler: ViewSamplerCfg
 
-@dataclass
-class DatasetCfgCommon:
-    input_image_shape: list[int]
-    background_color: list[float]
-    cameras_are_circular: bool
-    overfit_to_scene: str | None
-    view_sampler: ViewSamplerCfg
+
 
 
 @dataclass

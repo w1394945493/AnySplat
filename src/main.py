@@ -3,7 +3,7 @@ from setproctitle import setproctitle
 setproctitle("wys")
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
 from pathlib import Path
 
@@ -32,6 +32,7 @@ from hydra.core.hydra_config import HydraConfig
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.model.model import get_model
 from src.misc.weight_modify import checkpoint_filter_fn
 
@@ -136,7 +137,8 @@ def train(cfg_dict: DictConfig):
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         check_val_every_n_epoch=None,
-        enable_progress_bar=False,
+        # enable_progress_bar=False,
+        enable_progress_bar=cfg.mode == "test",
         gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=cfg.trainer.max_steps,
         precision=cfg.trainer.precision,
@@ -187,8 +189,9 @@ def train(cfg_dict: DictConfig):
             # if 'state_dict' in pretrained_model:
             #     pretrained_model = pretrained_model['state_dict']
             # model_wrapper.model.load_state_dict(pretrained_model, strict=strict_load)
-
-            model_wrapper.model.from_pretrained(cfg.checkpointing.pretrained_model)
+            # todo 从本地加载预训练权重
+            from src.model.model.anysplat import AnySplat
+            model_wrapper.model=AnySplat.from_pretrained(cfg.checkpointing.pretrained_model)
             print(
                 cyan(
                     f"Loaded pretrained weights: {cfg.checkpointing.pretrained_model}"

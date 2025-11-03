@@ -181,5 +181,6 @@ def process_image(img_path):
     right = left + 448
     bottom = top + 448
     img = img.crop((left, top, right, bottom))
-    img_tensor = torchvision.transforms.ToTensor()(img) * 2.0 - 1.0 # [-1, 1] # todo ToTensor:0-1 再标准化成[-1,1]区间，以便训练稳定
+    # img_tensor = torchvision.transforms.ToTensor()(img) * 2.0 - 1.0 # [-1, 1] # todo ToTensor:0-1 再标准化成[-1,1]区间，以便训练稳定
+    img_tensor = torchvision.transforms.ToTensor()(img)
     return img_tensor

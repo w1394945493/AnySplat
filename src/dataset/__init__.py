@@ -9,19 +9,19 @@ from .view_sampler import get_view_sampler
 from .dataset_dl3dv import DatasetDL3DV, DatasetDL3DVCfgWrapper
 from .dataset_scannetpp import DatasetScannetpp, DatasetScannetppCfgWrapper
 from .dataset_co3d import DatasetCo3d, DatasetCo3dCfgWrapper
-# from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg
+from .dataset_re10k import DatasetRE10k, DatasetRe10kCfgWrapper
 from .dataset_omniscene import DatasetOmniScene, DatasetOmniSceneCfgWrapper
 
 DATASETS: dict[str, Dataset] = {
     "co3d": DatasetCo3d,
     "scannetpp": DatasetScannetpp,
     "dl3dv": DatasetDL3DV,
-    # "re10k": DatasetRE10k,
+    "re10k": DatasetRE10k,
     "omniscene": DatasetOmniScene,
 }
 
 # DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper | DatasetRE10kCfg
-DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper | DatasetOmniSceneCfgWrapper
+DatasetCfgWrapper = DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetCo3dCfgWrapper | DatasetOmniSceneCfgWrapper | DatasetRe10kCfgWrapper
 
 class TestDatasetWarpper(Dataset):
     def __init__(self, dataset: Dataset):
@@ -61,7 +61,7 @@ def get_dataset(
     stage: Stage,
     step_tracker: StepTracker | None,
     dataset_shim: Callable[[Dataset, str], Dataset]
-) -> list[Dataset]:
+) -> list[Dataset] | Dataset:
     datasets = []
     if stage != "test":
         if stage == "val":
